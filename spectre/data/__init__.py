@@ -11,6 +11,7 @@ from .dataloader import (
 from .memory import (
     MemoryLoader,
 )
+from .mt5 import MT5Loader
 from .quandl import (
     QuandlLoader,
 )

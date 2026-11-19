@@ -26,6 +26,11 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/Heerozh/spectre"
 
+[project.optional-dependencies]
+mt5 = [
+    "metatrader5>=5.0.6231 ; python_full_version == '3.14.*' and platform_machine == 'AMD64' and sys_platform == 'win32'",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=9.2",

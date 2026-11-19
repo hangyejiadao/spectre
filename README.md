@@ -11,6 +11,9 @@ spectre is a **GPU-accelerated Parallel** quantitative trading library, focused 
 
 Requires Python 3.14+, PyTorch 2.15+, Pandas 3.1+
 
+This fork adds a read-only [MetaTrader 5 quick start](examples/mt5.md) for broker history
+and offline CSV snapshots. No account credentials or order execution are required by the loader.
+
 
 # Installation
 
