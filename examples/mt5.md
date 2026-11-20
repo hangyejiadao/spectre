@@ -37,3 +37,37 @@ No terminal or SDK is needed for offline replay. Use one comma-separated UTF-8 f
 - Python callers with an already initialized `MetaTrader5` session can call
   `MT5Loader.from_terminal(mt5, ["XAUUSDm"], "H4", 250)` directly. The caller owns the session
   lifecycle. Each call is a snapshot, not a streaming subscription or an execution adapter.
+
+## GPU and M15 intraday research
+
+For a supported NVIDIA GPU, install the project's locked CUDA group instead of the CPU group:
+
+```powershell
+uv sync --locked --extra mt5
+.\.venv\Scripts\python.exe -m examples.mt5_intraday --terminal D:\mt5\terminal64.exe --portable --symbol XAUUSD --bars 60000 --device cuda --check-cpu
+```
+
+`--device cuda` requires CUDA; it never silently uses CPU. In the simpler `mt5_factors.py`
+example `--device auto` is the default. Only factor calculation runs on the GPU; terminal I/O,
+evaluation and output use the CPU. `--check-cpu` compares all five factor columns on the same
+bars and fails on a mismatch. Timings in run.json are single calls, not a warmed benchmark.
+
+The M15 screen uses momentum (4 bars), distance from SMA(16), signed candle body/range,
+range/SMA(range,16), and tick volume/SMA(tick volume,16). Train/validation/test use chronological
+60/20/20 splits. Only training data determines the sign (Spearman IC) and the 20/80 percentiles.
+After a break in the M15 grid, wait 16 bars. Enter at the next open; exit 1, 4 or 8 bars after
+entry. Purge labels reaching another split or crossing missing bars. Each rule holds at most one
+position, but the IC uses overlapping labels; the trades are not 15 independent portfolios.
+
+On bid-based charts use the bar spread at buy entry or short exit as an *approximation* to ask.
+Both endpoint spreads must be positive. `--extra-roundtrip-bps` (default 1.0) is a cost scenario
+for additional slippage and fees, not measured execution. Results in `summary.csv` are average
+basis points per trade, not cumulative performance. Do not treat the largest test value from a
+multi-rule screen as confirmed alpha; test it on new data and realistic quotes.
+
+Each run prints its private output directory (`.cache/mt5_intraday/...` by default). It contains
+the bar snapshot, run settings and per-split results. Reproduce without MT5 using `--replay`:
+
+```powershell
+.\.venv\Scripts\python.exe -m examples.mt5_intraday --replay PATH_TO_PRIOR_RUN --device cuda --check-cpu
+```

@@ -3,13 +3,27 @@
 import argparse
 import os
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
+
+import torch
 
 from spectre.data import MT5Loader
 from spectre.factors import OHLCV, FactorEngine, Returns
 
 
-def terminal_snapshot(args):
+def configure_device(engine, requested):
+    if requested == "cpu" or (requested == "auto" and not torch.cuda.is_available()):
+        engine.to_cpu()
+    else:
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA unavailable: install the CUDA torch group or use --device cpu")
+        engine.to_cuda()
+    return str(engine.device)
+
+
+@contextmanager
+def terminal_session(args):
     if os.name != "nt":
         raise ValueError("The terminal requires Windows; use --csv on other platforms.")
     path = Path(args.terminal).resolve(strict=True)
@@ -40,11 +54,16 @@ def terminal_snapshot(args):
             raise RuntimeError("Terminal is not connected to the broker.")
         if Path(info.path).resolve() != path.parent:
             raise RuntimeError("SDK connected to a different terminal installation.")
+        yield mt5
+    finally:
+        mt5.shutdown()
+
+
+def terminal_snapshot(args):
+    with terminal_session(args) as mt5:
         return MT5Loader.from_terminal(
             mt5, args.symbols, args.timeframe, args.bars, volume=args.volume
         )
-    finally:
-        mt5.shutdown()
 
 
 def main():
@@ -55,6 +74,7 @@ def main():
     parser.add_argument("--symbols", nargs="+", help="exact broker names (terminal mode)")
     parser.add_argument("--timeframe", default="D1", help="MT5 timeframe (terminal mode)")
     parser.add_argument("--bars", type=int, default=250, help="closed bars per symbol (terminal)")
+    parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto")
     parser.add_argument("--portable", action="store_true", help="attach using MT5 portable mode")
     parser.add_argument("--volume", choices=["tick_volume", "real_volume"], default="tick_volume")
     args = parser.parse_args()
@@ -75,6 +95,7 @@ def main():
         if bars.groupby(level="asset", observed=True).size().min() < 21:
             raise ValueError("20-bar returns require at least 21 completed bars per symbol")
         engine = FactorEngine(loader)
+        print(f"Spectre device: {configure_device(engine, args.device)}")
         engine.add(OHLCV.close, "close")
         engine.add(Returns(21), "return_20_bars")
         # Snapshot after close, not a signal tradable at this row's opening timestamp.
